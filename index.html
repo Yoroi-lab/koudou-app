@@ -1,0 +1,329 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>行動記録</title>
+<meta name="theme-color" content="#181820">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="行動記録">
+<style>
+:root{--bg:#181820;--card:#23232e;--card2:#2c2c3a;--text:#f2f2f5;--muted:#a0a0b0;--accent:#38bdf8;--border:#3a3a4a}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;padding:16px 14px 40px;max-width:560px;margin:0 auto}
+h1{font-size:20px;margin-bottom:2px}
+.sub{color:var(--muted);font-size:12px;margin-bottom:14px}
+.card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:14px;margin-bottom:14px}
+.timer{text-align:center;padding:20px 14px}
+.timer .now{font-size:15px;color:var(--muted)}
+.timer .elapsed{font-size:44px;font-weight:700;font-variant-numeric:tabular-nums;margin:6px 0}
+.timer .cat{font-size:18px;font-weight:600}
+.btn{border:none;border-radius:10px;padding:12px 14px;font-size:15px;font-weight:600;cursor:pointer;width:100%}
+.btn-stop{background:#ef4444;color:#fff;margin-top:12px}
+.btn-sub{background:var(--card2);color:var(--text);border:1px solid var(--border)}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.catbtn{background:var(--card2);border:1px solid var(--border);border-radius:12px;padding:12px 6px;color:var(--text);font-size:14px;font-weight:600;cursor:pointer;text-align:center}
+.catbtn .dot{display:block;width:12px;height:12px;border-radius:50%;margin:0 auto 6px}
+.catbtn.active{outline:2px solid var(--accent)}
+input,select,textarea{background:var(--card2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:9px;font-size:14px;width:100%}
+label{font-size:12px;color:var(--muted);display:block;margin:8px 0 4px}
+.row{display:flex;gap:8px}.row>*{flex:1}
+.tl{position:relative;height:34px;background:var(--card2);border-radius:8px;overflow:hidden;margin-top:8px}
+.tl div{position:absolute;top:0;bottom:0}
+.tl-hours{display:flex;justify-content:space-between;font-size:10px;color:var(--muted);margin-top:4px}
+table{width:100%;border-collapse:collapse;font-size:13px}
+td,th{padding:6px 4px;border-bottom:1px solid var(--border);text-align:left}
+th{color:var(--muted);font-weight:600}
+.entry{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--border);cursor:pointer}
+.entry:last-child{border-bottom:none}
+.entry .t{font-variant-numeric:tabular-nums;color:var(--muted);font-size:13px}
+.entry .m{font-size:12px;color:var(--muted)}
+textarea{height:150px;font-size:13px;line-height:1.6}
+.small{font-size:12px;color:var(--muted);line-height:1.7}
+summary{cursor:pointer;font-weight:600;font-size:15px}
+.datebar{display:flex;gap:8px;align-items:center;margin-bottom:14px}
+.datebar button{background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-size:15px;cursor:pointer}
+.datebar input{flex:1}
+</style>
+</head>
+<body>
+<h1>行動記録</h1>
+<div class="sub">データはこの端末の中に自動保存されます（localStorage）。バックアップはJSON書き出しがおすすめ。</div>
+
+<div class="card timer" id="timerCard">
+  <div class="now" id="timerLabel">計測していません</div>
+  <div class="elapsed" id="timerElapsed">00:00:00</div>
+  <div class="cat" id="timerCat"></div>
+  <input id="quickMemo" placeholder="メモ（任意）例：社会政策B" style="margin-top:12px;text-align:center">
+  <button class="btn btn-stop" id="stopBtn" style="display:none">停止する</button>
+</div>
+
+<div class="card">
+  <div class="grid" id="catGrid"></div>
+  <div class="small" style="margin-top:8px">カテゴリをタップすると計測開始。前の記録は自動で終了します。</div>
+</div>
+
+<div class="datebar">
+  <button id="prevDay">◀</button>
+  <input type="date" id="datePick">
+  <button id="nextDay">▶</button>
+  <button id="todayBtn">今日</button>
+</div>
+
+<div class="card">
+  <b>24時間タイムライン</b>
+  <div class="tl" id="timeline"></div>
+  <div class="tl-hours"><span>0時</span><span>6時</span><span>12時</span><span>18時</span><span>24時</span></div>
+  <div id="totals" style="margin-top:10px"></div>
+</div>
+
+<div class="card">
+  <b>記録一覧</b>
+  <div id="entryList"></div>
+</div>
+
+<div class="card">
+  <details>
+    <summary>手入力で追加・修正</summary>
+    <label>カテゴリ</label>
+    <select id="fCat"></select>
+    <div class="row">
+      <div><label>開始</label><input type="time" id="fStart"></div>
+      <div><label>終了</label><input type="time" id="fEnd"></div>
+    </div>
+    <label>メモ</label>
+    <input id="fMemo" placeholder="例：簿記 商品・収益認識">
+    <label style="display:flex;gap:6px;align-items:center"><input type="checkbox" id="fNextDay" style="width:auto"> 終了は翌日（夜勤など日またぎ）</label>
+    <button class="btn" id="saveEntry" style="background:var(--accent);color:#082f49;margin-top:10px">保存する</button>
+    <button class="btn btn-sub" id="cancelEdit" style="margin-top:8px;display:none">編集をやめる</button>
+    <div class="small">一覧の記録をタップすると編集できます。編集中は削除ボタンも出ます。</div>
+    <button class="btn btn-stop" id="deleteEntry" style="display:none">この記録を削除</button>
+  </details>
+</div>
+
+<div class="card">
+  <b>直近7日間</b>
+  <div id="weekTable" style="margin-top:8px"></div>
+</div>
+
+<div class="card">
+  <b>振り返りテキスト</b>
+  <div class="small">「07:00〜08:30 睡眠・仮眠」形式で自動生成。そのままコピーして分析に使えます。</div>
+  <textarea id="reviewText" readonly></textarea>
+  <div class="row" style="margin-top:8px">
+    <button class="btn" id="copyBtn" style="background:var(--accent);color:#082f49">コピー</button>
+    <button class="btn btn-sub" id="dlTxt">.txtで保存</button>
+  </div>
+  <div class="row" style="margin-top:8px">
+    <button class="btn btn-sub" id="exportJson">JSON書き出し（バックアップ）</button>
+    <button class="btn btn-sub" id="importBtn">JSON読み込み</button>
+  </div>
+  <input type="file" id="importFile" accept="application/json" style="display:none">
+</div>
+
+<div class="card">
+  <b>ホーム画面に追加する方法</b>
+  <div class="small">
+    iPhone（Safari）：共有ボタン →「ホーム画面に追加」<br>
+    Android（Chrome）：メニュー →「ホーム画面に追加」／「アプリをインストール」<br>
+    追加すると全画面のアプリとして起動し、オフラインでも使えます。
+  </div>
+</div>
+
+<script>
+"use strict";
+const CATS=[
+ {id:"class",name:"授業",color:"#60a5fa"},
+ {id:"study",name:"簿記勉強",color:"#38bdf8"},
+ {id:"work",name:"バイト",color:"#f59e0b"},
+ {id:"workbreak",name:"バイト休憩",color:"#fbbf24"},
+ {id:"sleep",name:"睡眠・仮眠",color:"#818cf8"},
+ {id:"meal",name:"食事",color:"#34d399"},
+ {id:"move",name:"移動",color:"#94a3b8"},
+ {id:"exercise",name:"運動",color:"#fb7185"},
+ {id:"phone",name:"スマホ",color:"#ef4444"},
+ {id:"prize",name:"懸賞",color:"#e879f9"},
+ {id:"rest",name:"休憩",color:"#a3a380"},
+ {id:"other",name:"その他",color:"#cbd5e1"}
+];
+const catById=id=>CATS.find(c=>c.id===id)||CATS[CATS.length-1];
+const KEY="koudou-log-v1";
+let state={entries:[],running:null};
+try{const raw=localStorage.getItem(KEY);if(raw)state=JSON.parse(raw);}catch(e){}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){alert("保存に失敗しました。JSON書き出しでバックアップしてください。");}}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
+function pad(n){return String(n).padStart(2,"0");}
+function fmtTime(d){return pad(d.getHours())+":"+pad(d.getMinutes());}
+function fmtDur(ms){const s=Math.floor(ms/1000);return pad(Math.floor(s/3600))+":"+pad(Math.floor(s/60)%60)+":"+pad(s%60);}
+function fmtHM(min){const h=Math.floor(min/60),m=Math.round(min%60);return h>0?h+"時間"+(m?m+"分":""):m+"分";}
+function dateKey(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());}
+let viewDate=new Date();viewDate.setHours(0,0,0,0);
+
+const grid=document.getElementById("catGrid");
+CATS.forEach(c=>{
+  const b=document.createElement("button");b.className="catbtn";b.dataset.id=c.id;
+  b.innerHTML='<span class="dot" style="background:'+c.color+'"></span>'+c.name;
+  b.onclick=()=>startCat(c.id);
+  grid.appendChild(b);
+});
+const fCat=document.getElementById("fCat");
+CATS.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.name;fCat.appendChild(o);});
+
+function startCat(id){
+  const now=new Date();
+  if(state.running){state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});}
+  state.running={cat:id,start:now.toISOString(),memo:document.getElementById("quickMemo").value};
+  save();render();
+}
+document.getElementById("stopBtn").onclick=()=>{
+  if(!state.running)return;
+  const now=new Date();
+  state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});
+  state.running=null;document.getElementById("quickMemo").value="";save();render();
+};
+setInterval(()=>{
+  if(state.running){
+    const el=Date.now()-new Date(state.running.start).getTime();
+    document.getElementById("timerElapsed").textContent=fmtDur(el);
+  }
+},500);
+
+function dayRange(d){const s=new Date(d);s.setHours(0,0,0,0);const e=new Date(s);e.setDate(e.getDate()+1);return[s,e];}
+function clip(entry,s,e){
+  const a=Math.max(new Date(entry.start).getTime(),s.getTime());
+  const b=Math.min(new Date(entry.end).getTime(),e.getTime());
+  return b>a?[a,b]:null;
+}
+function render(){
+  // timer
+  const label=document.getElementById("timerLabel"),catEl=document.getElementById("timerCat"),stop=document.getElementById("stopBtn");
+  document.querySelectorAll(".catbtn").forEach(b=>b.classList.toggle("active",!!state.running&&state.running.cat===b.dataset.id));
+  if(state.running){
+    label.textContent=fmtTime(new Date(state.running.start))+" から計測中";
+    catEl.textContent=catById(state.running.cat).name;
+    stop.style.display="block";
+  }else{
+    label.textContent="計測していません";catEl.textContent="";stop.style.display="none";
+    document.getElementById("timerElapsed").textContent="00:00:00";
+  }
+  document.getElementById("datePick").value=dateKey(viewDate);
+  const [s,e]=dayRange(viewDate);
+  // timeline + totals
+  const tl=document.getElementById("timeline");tl.innerHTML="";
+  const totals={};let covered=0;
+  const dayEntries=[];
+  state.entries.forEach(en=>{
+    const c=clip(en,s,e);if(!c)return;
+    const [a,b]=c;const mins=(b-a)/60000;
+    totals[en.cat]=(totals[en.cat]||0)+mins;covered+=mins;
+    dayEntries.push({en,a,b});
+    const div=document.createElement("div");
+    div.style.left=(a-s.getTime())/864000+"%";div.style.width=Math.max((b-a)/864000,0.3)+"%";
+    div.style.background=catById(en.cat).color;div.title=catById(en.cat).name;
+    tl.appendChild(div);
+  });
+  if(state.running){
+    const a=Math.max(new Date(state.running.start).getTime(),s.getTime());
+    if(a<e.getTime()){const div=document.createElement("div");
+      div.style.left=(a-s.getTime())/864000+"%";div.style.width=Math.max((e.getTime()-a)/864000,0.3)+"%";
+      div.style.background=catById(state.running.cat).color;div.style.opacity="0.45";tl.appendChild(div);}
+  }
+  let th="<table>";
+  Object.keys(totals).sort((x,y)=>totals[y]-totals[x]).forEach(id=>{
+    th+="<tr><td>"+catById(id).name+"</td><td style='text-align:right'>"+fmtHM(totals[id])+"</td></tr>";
+  });
+  const unrec=Math.max(0,1440-covered);
+  th+="<tr><td>未記録</td><td style='text-align:right'>"+fmtHM(unrec)+"</td></tr></table>";
+  document.getElementById("totals").innerHTML=th;
+  // entry list
+  dayEntries.sort((x,y)=>x.a-y.a);
+  const list=document.getElementById("entryList");
+  list.innerHTML=dayEntries.length?"":"<div class='small'>この日の記録はまだありません。</div>";
+  dayEntries.forEach(({en,a,b})=>{
+    const row=document.createElement("div");row.className="entry";
+    row.innerHTML="<div><b>"+catById(en.cat).name+"</b> <span class='m'>"+(en.memo||"")+"</span></div><div class='t'>"+fmtTime(new Date(a))+"〜"+fmtTime(new Date(b))+"</div>";
+    row.onclick=()=>editEntry(en.id);
+    list.appendChild(row);
+  });
+  // review text
+  const lines=dayEntries.map(({en,a,b})=>fmtTime(new Date(a))+"〜"+fmtTime(new Date(b))+" "+catById(en.cat).name+(en.memo?"（"+en.memo+"）":""));
+  document.getElementById("reviewText").value=lines.join("\n");
+  // week table
+  let wh="<table><tr><th>日付</th><th>勉強</th><th>睡眠</th><th>スマホ</th><th>記録合計</th></tr>";
+  for(let i=6;i>=0;i--){
+    const d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-i);
+    const [ds,de]=dayRange(d);const t={};let cov=0;
+    state.entries.forEach(en=>{const c=clip(en,ds,de);if(!c)return;const m=(c[1]-c[0])/60000;t[en.cat]=(t[en.cat]||0)+m;cov+=m;});
+    wh+="<tr><td>"+(d.getMonth()+1)+"/"+d.getDate()+"</td><td>"+fmtHM(t.study||0)+"</td><td>"+fmtHM(t.sleep||0)+"</td><td>"+fmtHM(t.phone||0)+"</td><td>"+fmtHM(cov)+"</td></tr>";
+  }
+  wh+="</table>";
+  document.getElementById("weekTable").innerHTML=wh;
+}
+let editingId=null;
+function editEntry(id){
+  const en=state.entries.find(x=>x.id===id);if(!en)return;
+  editingId=id;
+  fCat.value=en.cat;
+  const st=new Date(en.start),enD=new Date(en.end);
+  document.getElementById("fStart").value=fmtTime(st);
+  document.getElementById("fEnd").value=fmtTime(enD);
+  document.getElementById("fMemo").value=en.memo||"";
+  document.getElementById("fNextDay").checked=enD.getDate()!==st.getDate()||enD<=st;
+  document.getElementById("cancelEdit").style.display="block";
+  document.getElementById("deleteEntry").style.display="block";
+  document.querySelector("details").open=true;
+  window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+}
+document.getElementById("saveEntry").onclick=()=>{
+  const cat=fCat.value,st=document.getElementById("fStart").value,en=document.getElementById("fEnd").value;
+  if(!st||!en){alert("開始と終了を入れてください。");return;}
+  const base=editingId?new Date(state.entries.find(x=>x.id===editingId).start):new Date(viewDate);
+  const s2=new Date(base);const [sh,sm]=st.split(":").map(Number);s2.setHours(sh,sm,0,0);
+  const e2=new Date(base);const [eh,em]=en.split(":").map(Number);e2.setHours(eh,em,0,0);
+  if(document.getElementById("fNextDay").checked||e2<=s2)e2.setDate(e2.getDate()+1);
+  const memo=document.getElementById("fMemo").value;
+  if(editingId){
+    const enObj=state.entries.find(x=>x.id===editingId);
+    enObj.cat=cat;enObj.start=s2.toISOString();enObj.end=e2.toISOString();enObj.memo=memo;
+  }else{
+    state.entries.push({id:uid(),cat,start:s2.toISOString(),end:e2.toISOString(),memo});
+  }
+  editingId=null;document.getElementById("cancelEdit").style.display="none";document.getElementById("deleteEntry").style.display="none";
+  save();render();
+};
+document.getElementById("cancelEdit").onclick=()=>{editingId=null;document.getElementById("cancelEdit").style.display="none";document.getElementById("deleteEntry").style.display="none";};
+document.getElementById("deleteEntry").onclick=()=>{
+  if(!editingId)return;
+  state.entries=state.entries.filter(x=>x.id!==editingId);editingId=null;
+  document.getElementById("cancelEdit").style.display="none";document.getElementById("deleteEntry").style.display="none";
+  save();render();
+};
+document.getElementById("prevDay").onclick=()=>{viewDate.setDate(viewDate.getDate()-1);render();};
+document.getElementById("nextDay").onclick=()=>{viewDate.setDate(viewDate.getDate()+1);render();};
+document.getElementById("todayBtn").onclick=()=>{viewDate=new Date();viewDate.setHours(0,0,0,0);render();};
+document.getElementById("datePick").onchange=ev=>{if(ev.target.value){viewDate=new Date(ev.target.value+"T00:00:00");render();}};
+document.getElementById("copyBtn").onclick=async()=>{
+  const t=document.getElementById("reviewText").value;
+  try{await navigator.clipboard.writeText(t);alert("コピーしました。");}catch(e){document.getElementById("reviewText").select();document.execCommand("copy");}
+};
+function download(name,content,type){
+  const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
+}
+document.getElementById("dlTxt").onclick=()=>download("review-"+dateKey(viewDate)+".txt",document.getElementById("reviewText").value,"text/plain");
+document.getElementById("exportJson").onclick=()=>download("koudou-backup-"+dateKey(new Date())+".json",JSON.stringify(state,null,2),"application/json");
+document.getElementById("importBtn").onclick=()=>document.getElementById("importFile").click();
+document.getElementById("importFile").onchange=ev=>{
+  const f=ev.target.files[0];if(!f)return;
+  const r=new FileReader();
+  r.onload=()=>{try{const data=JSON.parse(r.result);if(!Array.isArray(data.entries))throw 0;state=data;save();render();alert("読み込みました。");}catch(e){alert("読み込めませんでした。");}};
+  r.readAsText(f);
+};
+if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
+render();
+</script>
+</body>
+</html>
