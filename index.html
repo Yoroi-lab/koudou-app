@@ -210,6 +210,10 @@ function render(){
     label.textContent="計測していません";catEl.textContent="";stop.style.display="none";
     document.getElementById("timerElapsed").textContent="00:00:00";
   }
+  if("setAppBadge" in navigator){
+    if(state.running){navigator.setAppBadge(1).catch(()=>{});}
+    else if(navigator.clearAppBadge){navigator.clearAppBadge().catch(()=>{});}
+  }
   document.getElementById("datePick").value=dateKey(viewDate);
   const [s,e]=dayRange(viewDate);
   // timeline + totals
@@ -323,6 +327,14 @@ document.getElementById("importFile").onchange=ev=>{
   r.readAsText(f);
 };
 if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.serviceWorker.register("sw.js").catch(()=>{});});}
+// ショートカット連携：?start=<カテゴリid> で計測開始、?stop=1 で停止（例：?start=study）
+(function(){
+  const q=new URLSearchParams(location.search);
+  const st=q.get("start"),sp=q.get("stop");
+  if(sp&&state.running){document.getElementById("stopBtn").click();}
+  else if(st&&CATS.some(c=>c.id===st)){startCat(st);}
+  if(st||sp){history.replaceState(null,"",location.pathname);}
+})();
 render();
 </script>
 </body>
