@@ -65,6 +65,13 @@ summary{cursor:pointer;font-weight:600;font-size:15px}
 <div class="card">
   <div class="grid" id="catGrid"></div>
   <div class="small" style="margin-top:8px">カテゴリをタップすると計測開始。前の記録は自動で終了します。</div>
+  <details style="margin-top:10px">
+    <summary style="font-size:14px">カテゴリを追加・削除</summary>
+    <input id="newCatName" placeholder="新しいカテゴリ名（例：読書、Muse）" style="margin-top:8px">
+    <div id="colorPick" style="margin:6px 0"></div>
+    <button class="btn" id="addCatBtn" style="background:var(--card2);color:var(--text);border:1px solid var(--border)">追加する</button>
+    <div id="customCatList" style="margin-top:8px"></div>
+  </details>
 </div>
 
 <div class="datebar">
@@ -150,10 +157,12 @@ const CATS=[
  {id:"rest",name:"休憩",color:"#a3a380"},
  {id:"other",name:"その他",color:"#cbd5e1"}
 ];
-const catById=id=>CATS.find(c=>c.id===id)||CATS[CATS.length-1];
+const catById=id=>allCats().find(c=>c.id===id)||CATS[CATS.length-1];
 const KEY="koudou-log-v1";
-let state={entries:[],running:null};
+let state={entries:[],running:null,custom:[]};
 try{const raw=localStorage.getItem(KEY);if(raw)state=JSON.parse(raw);}catch(e){}
+if(!Array.isArray(state.custom))state.custom=[];
+function allCats(){return CATS.concat(state.custom||[]);}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){alert("保存に失敗しました。JSON書き出しでバックアップしてください。");}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
 function pad(n){return String(n).padStart(2,"0");}
@@ -164,14 +173,42 @@ function dateKey(d){return d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.get
 let viewDate=new Date();viewDate.setHours(0,0,0,0);
 
 const grid=document.getElementById("catGrid");
-CATS.forEach(c=>{
-  const b=document.createElement("button");b.className="catbtn";b.dataset.id=c.id;
-  b.innerHTML='<span class="dot" style="background:'+c.color+'"></span>'+c.name;
-  b.onclick=()=>startCat(c.id);
-  grid.appendChild(b);
-});
 const fCat=document.getElementById("fCat");
-CATS.forEach(c=>{const o=document.createElement("option");o.value=c.id;o.textContent=c.name;fCat.appendChild(o);});
+function buildCats(){
+  grid.innerHTML="";fCat.innerHTML="";
+  allCats().forEach(c=>{
+    const b=document.createElement("button");b.className="catbtn";b.dataset.id=c.id;
+    b.innerHTML='<span class="dot" style="background:'+c.color+'"></span>'+c.name;
+    b.onclick=()=>startCat(c.id);
+    grid.appendChild(b);
+    const o=document.createElement("option");o.value=c.id;o.textContent=c.name;fCat.appendChild(o);
+  });
+  document.querySelectorAll(".catbtn").forEach(b=>b.classList.toggle("active",!!state.running&&state.running.cat===b.dataset.id));
+  renderCustomList();
+}
+const PALETTE=["#f87171","#fb923c","#facc15","#4ade80","#2dd4bf","#38bdf8","#a78bfa","#f472b6","#e2e8f0","#94a3b8"];
+let selColor=PALETTE[5];
+function buildPalette(){
+  const p=document.getElementById("colorPick");if(!p)return;p.innerHTML="";
+  PALETTE.forEach(col=>{
+    const s=document.createElement("span");
+    s.style.cssText="display:inline-block;width:26px;height:26px;border-radius:50%;margin:3px;cursor:pointer;background:"+col+(col===selColor?";outline:3px solid #fff":";outline:1px solid var(--border)");
+    s.onclick=()=>{selColor=col;buildPalette();};
+    p.appendChild(s);
+  });
+}
+function renderCustomList(){
+  const list=document.getElementById("customCatList");if(!list)return;list.innerHTML="";
+  (state.custom||[]).forEach(c=>{
+    const row=document.createElement("div");
+    row.style.cssText="display:flex;justify-content:space-between;align-items:center;padding:6px 0;border-bottom:1px solid var(--border)";
+    row.innerHTML='<span><span class="dot" style="background:'+c.color+'"></span>'+c.name+"</span>";
+    const del=document.createElement("button");
+    del.textContent="削除";del.style.cssText="background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:8px;padding:4px 10px;cursor:pointer";
+    del.onclick=()=>{if(!confirm("カテゴリ「"+c.name+"」を削除しますか？過去の記録は残ります（表示名は「その他」になります）。"))return;state.custom=state.custom.filter(x=>x.id!==c.id);save();buildCats();render();};
+    row.appendChild(del);list.appendChild(row);
+  });
+}
 
 function startCat(id){
   const now=new Date();
@@ -332,9 +369,19 @@ if("serviceWorker" in navigator){window.addEventListener("load",()=>{navigator.s
   const q=new URLSearchParams(location.search);
   const st=q.get("start"),sp=q.get("stop");
   if(sp&&state.running){document.getElementById("stopBtn").click();}
-  else if(st&&CATS.some(c=>c.id===st)){startCat(st);}
+  else if(st&&allCats().some(c=>c.id===st)){startCat(st);}
   if(st||sp){history.replaceState(null,"",location.pathname);}
 })();
+document.getElementById("addCatBtn").onclick=()=>{
+  const inp=document.getElementById("newCatName");
+  const name=inp.value.trim();
+  if(!name){alert("カテゴリ名を入力してください。");return;}
+  if(allCats().some(c=>c.name===name)){alert("同じ名前のカテゴリがあります。");return;}
+  state.custom.push({id:"u"+Date.now().toString(36),name:name,color:selColor});
+  inp.value="";save();buildCats();render();
+};
+buildPalette();
+buildCats();
 render();
 </script>
 </body>
