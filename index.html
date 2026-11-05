@@ -212,16 +212,27 @@ function renderCustomList(){
 
 function startCat(id){
   const now=new Date();
-  if(state.running){state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});}
-  state.running={cat:id,start:now.toISOString(),memo:document.getElementById("quickMemo").value};
+  const qm=document.getElementById("quickMemo");
+  if(state.running){
+    state.running.memo=qm.value;
+    state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});
+    state.running={cat:id,start:now.toISOString(),memo:""};
+    qm.value="";
+  }else{
+    state.running={cat:id,start:now.toISOString(),memo:qm.value};
+  }
   save();render();
 }
 document.getElementById("stopBtn").onclick=()=>{
   if(!state.running)return;
   const now=new Date();
+  state.running.memo=document.getElementById("quickMemo").value;
   state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});
   state.running=null;document.getElementById("quickMemo").value="";save();render();
 };
+document.getElementById("quickMemo").addEventListener("input",e=>{
+  if(state.running){state.running.memo=e.target.value;save();}
+});
 setInterval(()=>{
   if(state.running){
     const el=Date.now()-new Date(state.running.start).getTime();
@@ -247,6 +258,8 @@ function render(){
     label.textContent="計測していません";catEl.textContent="";stop.style.display="none";
     document.getElementById("timerElapsed").textContent="00:00:00";
   }
+  const qm=document.getElementById("quickMemo");
+  if(state.running&&document.activeElement!==qm){qm.value=state.running.memo||"";}
   if("setAppBadge" in navigator){
     if(state.running){navigator.setAppBadge(1).catch(()=>{});}
     else if(navigator.clearAppBadge){navigator.clearAppBadge().catch(()=>{});}
