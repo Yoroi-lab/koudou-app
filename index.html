@@ -93,8 +93,8 @@ summary{cursor:pointer;font-weight:600;font-size:15px}
   <div id="entryList"></div>
 </div>
 
-<div class="card">
-  <details>
+<div class="card" id="editCard" style="scroll-margin-top:12px">
+  <details id="editDetails">
     <summary>手入力で追加・修正</summary>
     <label>カテゴリ</label>
     <select id="fCat"></select>
@@ -329,8 +329,8 @@ function editEntry(id){
   document.getElementById("fNextDay").checked=enD.getDate()!==st.getDate()||enD<=st;
   document.getElementById("cancelEdit").style.display="block";
   document.getElementById("deleteEntry").style.display="block";
-  document.querySelector("details").open=true;
-  window.scrollTo({top:document.body.scrollHeight,behavior:"smooth"});
+  document.getElementById("editDetails").open=true;
+  document.getElementById("editCard").scrollIntoView({behavior:"smooth",block:"start"});
 }
 document.getElementById("saveEntry").onclick=()=>{
   const cat=fCat.value,st=document.getElementById("fStart").value,en=document.getElementById("fEnd").value;
