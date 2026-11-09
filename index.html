@@ -52,7 +52,6 @@ summary{cursor:pointer;font-weight:600;font-size:15px}
 </head>
 <body>
 <h1>行動記録</h1>
-<div class="sub">データはこの端末の中に自動保存されます（localStorage）。バックアップはJSON書き出しがおすすめ。<br>⚠️ 必ずホーム画面のアイコンから開いてください。Safariやチャットのリンクから開くと別の保存場所になり、記録や計測が見えなくなります。</div>
 
 <div class="card timer" id="timerCard">
   <div class="now" id="timerLabel">計測していません</div>
@@ -119,26 +118,15 @@ summary{cursor:pointer;font-weight:600;font-size:15px}
 
 <div class="card">
   <b>振り返りテキスト</b>
-  <div class="small">「07:00〜08:30 睡眠・仮眠」形式で自動生成。そのままコピーして分析に使えます。</div>
   <textarea id="reviewText" readonly></textarea>
   <div class="row" style="margin-top:8px">
     <button class="btn" id="copyBtn" style="background:var(--accent);color:#082f49">コピー</button>
-    <button class="btn btn-sub" id="dlTxt">.txtで保存</button>
   </div>
   <div class="row" style="margin-top:8px">
     <button class="btn btn-sub" id="exportJson">JSON書き出し（バックアップ）</button>
     <button class="btn btn-sub" id="importBtn">JSON読み込み</button>
   </div>
   <input type="file" id="importFile" accept="application/json" style="display:none">
-</div>
-
-<div class="card">
-  <b>ホーム画面に追加する方法</b>
-  <div class="small">
-    iPhone（Safari）：共有ボタン →「ホーム画面に追加」<br>
-    Android（Chrome）：メニュー →「ホーム画面に追加」／「アプリをインストール」<br>
-    追加すると全画面のアプリとして起動し、オフラインでも使えます。
-  </div>
 </div>
 
 <script>
@@ -367,7 +355,7 @@ document.getElementById("copyBtn").onclick=async()=>{
 function download(name,content,type){
   const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),2000);
 }
-document.getElementById("dlTxt").onclick=()=>download("review-"+dateKey(viewDate)+".txt",document.getElementById("reviewText").value,"text/plain");
+
 document.getElementById("exportJson").onclick=()=>download("koudou-backup-"+dateKey(new Date())+".json",JSON.stringify(state,null,2),"application/json");
 document.getElementById("importBtn").onclick=()=>document.getElementById("importFile").click();
 document.getElementById("importFile").onchange=ev=>{
