@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>すぐ検索</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="theme-color" content="#ffffff">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Hiragino Sans", sans-serif;
+    background:#ffffff; color:#202124;
+    display:flex; flex-direction:column; align-items:center;
+    padding: 18vh 20px 20px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .logo { font-size:44px; font-weight:600; letter-spacing:-1px; margin-bottom:26px; user-select:none; }
+  .logo .b{color:#4285F4}.logo .r{color:#EA4335}.logo .y{color:#FBBC05}.logo .g{color:#34A853}
+  form { width:100%; max-width:560px; }
+  .box {
+    display:flex; align-items:center; gap:10px;
+    border:1px solid #dfe1e5; border-radius:999px;
+    padding: 14px 20px;
+    box-shadow: 0 1px 6px rgba(32,33,36,.12);
+  }
+  .box svg { flex:none; }
+  input {
+    flex:1; border:none; outline:none; font-size:20px; background:transparent; color:#202124;
+    -webkit-appearance:none; appearance:none;
+  }
+  input::placeholder { color:#9aa0a6; }
+</style>
+</head>
+<body>
+  <div class="logo"><span class="b">G</span><span class="r">o</span><span class="y">o</span><span class="b">g</span><span class="g">l</span><span class="r">e</span></div>
+  <form id="searchForm" action="https://www.google.com/search" method="GET">
+    <div class="box">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="#9aa0a6"><path d="M15.5 14h-.79l-.28-.27a6.5 6.5 0 1 0-.7.7l.27.28v.79l5 4.99L20.49 19zm-6 0A4.5 4.5 0 1 1 14 9.5 4.5 4.5 0 0 1 9.5 14z"/></svg>
+      <input id="q" name="q" type="search" placeholder="Google で検索" autocomplete="off" autocapitalize="off" enterkeyhint="search">
+    </div>
+  </form>
+<script>
+"use strict";
+const q = document.getElementById("q");
+function focusInput(){ try { q.focus({ preventScroll:true }); } catch(e){ q.focus(); } }
+window.addEventListener("load", focusInput);
+document.addEventListener("visibilitychange", () => { if (!document.hidden) focusInput(); });
+window.addEventListener("pageshow", focusInput);
+document.addEventListener("touchstart", (e) => { if (e.target !== q) { setTimeout(focusInput, 0); } }, { passive:true });
+document.getElementById("searchForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  const v = q.value.trim();
+  if (!v) return;
+  location.href = "https://www.google.com/search?q=" + encodeURIComponent(v);
+});
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js").catch(() => {});
+}
+</script>
+</body>
+</html>
