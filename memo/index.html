@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ことばメモ</title>
+<meta name="theme-color" content="#171321">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+  :root{ --bg:#171321; --card:#221b31; --line:#3a3152; --txt:#f0ebfa; --sub:#a79cc4; --acc:#b18cff; --acc2:#ffb86b; }
+  *{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  body{ margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:15px; line-height:1.6; padding:0 12px calc(20px + env(safe-area-inset-bottom)); }
+  h1{ font-size:19px; margin:16px 2px 4px; }
+  .hint{ color:var(--sub); font-size:12.5px; margin:0 2px 10px; }
+  .card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin:10px 0; }
+  .card h2{ font-size:14px; margin:0 0 8px; color:var(--acc2); }
+  label{ display:block; font-size:12.5px; color:var(--sub); margin:8px 0 4px; }
+  input[type=text], textarea{ width:100%; background:#120d1e; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:15px; font-family:inherit; }
+  textarea{ min-height:110px; resize:vertical; line-height:1.7; }
+  button{ appearance:none; border:0; border-radius:999px; padding:9px 16px; font-size:14px; font-weight:700; background:var(--acc); color:#171321; cursor:pointer; }
+  button.ghost{ background:transparent; color:var(--acc); border:1px solid var(--acc); }
+  button.warn{ background:transparent; color:#ff7a7a; border:1px solid #5a2f35; font-weight:600; padding:6px 12px; font-size:12.5px; }
+  button.small{ padding:6px 12px; font-size:12.5px; }
+  .row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grow{ flex:1 1 auto; }
+  .tags{ display:flex; gap:6px; flex-wrap:wrap; margin:6px 0; }
+  .tag{ font-size:13px; border:1px solid var(--line); color:var(--sub); border-radius:999px; padding:4px 12px; cursor:pointer; user-select:none; background:#120d1e; }
+  .tag.on{ background:var(--acc); color:#171321; border-color:var(--acc); font-weight:700; }
+  .tag.fon{ background:var(--acc2); color:#171321; border-color:var(--acc2); font-weight:700; }
+  .memo{ border:1px solid var(--line); border-radius:12px; padding:11px; margin:8px 0; background:#120d1e; }
+  .memo .ttl{ font-weight:700; margin-bottom:2px; }
+  .memo .body{ white-space:pre-wrap; word-break:break-word; }
+  .memo .meta{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; align-items:center; }
+  .memo .date{ color:var(--sub); font-size:11.5px; margin-left:auto; }
+  .mtag{ font-size:11.5px; color:var(--acc); border:1px solid var(--line); border-radius:999px; padding:1px 9px; }
+  .glabel{ font-size:11.5px; color:var(--sub); margin:8px 0 2px; }
+  .empty{ color:var(--sub); text-align:center; padding:22px 0; }
+  footer{ color:var(--sub); font-size:11.5px; text-align:center; margin-top:18px; }
+  mark{ background:#ffd400; color:#171321; border-radius:2px; padding:0 1px; }
+</style>
+</head>
+<body>
+<h1>✒️ ことばメモ</h1>
+<p class="hint">小説・作詞用。エピソードや使いたい言い回しをひたすら放り込む場所。</p>
+
+<div class="card">
+  <h2 id="formTitle">新しいメモ</h2>
+  <input type="text" id="mTitle" placeholder="タイトル（なくてもOK）">
+  <label>本文</label>
+  <textarea id="mBody" placeholder="エピソード、言い回し、情景、なんでも"></textarea>
+  <label>タグ（タップで付け外し／自由に追加もOK）</label>
+  <div id="presetTags"></div>
+  <div class="row" style="margin-top:6px">
+    <input type="text" id="newTag" class="grow" placeholder="新しいタグ名">
+    <button id="addTag" class="ghost small">タグ追加</button>
+  </div>
+  <div class="row" style="margin-top:12px">
+    <button id="saveMemo">保存する</button>
+    <button id="cancelEdit" class="ghost" style="display:none">編集をやめる</button>
+  </div>
+</div>
+
+<div class="card">
+  <h2>探す</h2>
+  <div class="row">
+    <input type="text" id="q" class="grow" placeholder="キーワード検索（本文・タイトル・タグ）">
+    <button id="randomBtn" class="ghost">🎲 ランダム</button>
+  </div>
+  <div class="glabel">タグで絞り込み（複数OK）</div>
+  <div id="filterTags" class="tags"></div>
+  <div class="row">
+    <span class="hint" id="countLabel" style="margin:0"></span>
+    <button id="clearFilter" class="ghost small">絞り込み解除</button>
+  </div>
+</div>
+
+<div id="list"></div>
+
+<div class="card">
+  <div class="row">
+    <button id="exportBtn" class="ghost small">JSON書き出し</button>
+    <button id="importBtn" class="ghost small">JSON読み込み</button>
+    <input type="file" id="importFile" accept="application/json" style="display:none">
+  </div>
+</div>
+
+<footer>データはこの端末の中だけに保存されます</footer>
+
+<script>
+const KEY = 'kotoba-memo-v1';
+const GROUPS = [
+  ['季節', ['春','夏','秋','冬']],
+  ['気持ち・関係', ['片想い','失恋','恋','両想い','別れ','再会','友情','青春','切ない','幸せ']],
+  ['時間・天気', ['朝','昼','夕方','夜','深夜','雨','雪','晴れ','曇り']],
+  ['場所・乗り物', ['自転車','バス','電車','駅','海','学校','教室','坂道','信号','帰り道','部屋']],
+  ['種類', ['エピソード','言い回し','情景','タイトル案','ワンフレーズ']]
+];
+let state = load();
+let draftTags = new Set();
+let filterTags = new Set();
+let editId = null;
+
+function load(){
+  try{ const s = JSON.parse(localStorage.getItem(KEY)); if (s && Array.isArray(s.memos)) { s.customTags = s.customTags || []; return s; } }catch(e){}
+  return { memos: [], customTags: [] };
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state)); }
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6); }
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function allTags(){
+  const set = new Set();
+  GROUPS.forEach(([,ts]) => ts.forEach(t => set.add(t)));
+  state.customTags.forEach(t => set.add(t));
+  state.memos.forEach(m => m.tags.forEach(t => set.add(t)));
+  return set;
+}
+function fmtDate(ts){ const d = new Date(ts); return `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`; }
+
+const $ = id => document.getElementById(id);
+
+function renderTagPicker(){
+  const used = allTags();
+  let html = '';
+  GROUPS.forEach(([g, ts]) => {
+    html += `<div class="glabel">${g}</div><div class="tags">` + ts.map(t => `<span class="tag ${draftTags.has(t)?'on':''}" data-tag="${esc(t)}">${esc(t)}</span>`).join('') + `</div>`;
+  });
+  const customs = [...used].filter(t => !GROUPS.some(([,ts]) => ts.includes(t)));
+  if (customs.length) html += `<div class="glabel">自由タグ</div><div class="tags">` + customs.map(t => `<span class="tag ${draftTags.has(t)?'on':''}" data-tag="${esc(t)}">${esc(t)}</span>`).join('') + `</div>`;
+  $('presetTags').innerHTML = html;
+  $('presetTags').querySelectorAll('[data-tag]').forEach(el => el.onclick = () => {
+    const t = el.dataset.tag;
+    draftTags.has(t) ? draftTags.delete(t) : draftTags.add(t);
+    renderTagPicker();
+  });
+}
+function renderFilters(){
+  const used = new Set(); state.memos.forEach(m => m.tags.forEach(t => used.add(t)));
+  const order = [...allTags()].filter(t => used.has(t));
+  $('filterTags').innerHTML = order.map(t => `<span class="tag ${filterTags.has(t)?'fon':''}" data-ftag="${esc(t)}">${esc(t)}</span>`).join('') || '<span class="hint">まだタグ付きメモがありません</span>';
+  $('filterTags').querySelectorAll('[data-ftag]').forEach(el => el.onclick = () => {
+    const t = el.dataset.ftag;
+    filterTags.has(t) ? filterTags.delete(t) : filterTags.add(t);
+    render();
+  });
+}
+function filtered(){
+  const q = $('q').value.trim().toLowerCase();
+  return state.memos.filter(m => {
+    if (filterTags.size && ![...filterTags].every(t => m.tags.includes(t))) return false;
+    if (q) {
+      const hay = (m.title + '\n' + m.body + '\n' + m.tags.join(' ')).toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  }).sort((a,b) => b.updated - a.updated);
+}
+function hi(text){
+  const q = $('q').value.trim();
+  const e = esc(text);
+  if (!q) return e;
+  const qe = esc(q).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return e.replace(new RegExp(qe, 'gi'), m => `<mark>${m}</mark>`);
+}
+function renderList(items){
+  $('countLabel').textContent = `${items.length}件` + (state.memos.length !== items.length ? `（全${state.memos.length}件）` : '');
+  $('list').innerHTML = items.length ? items.map(m =>
+    `<div class="memo">
+       ${m.title ? `<div class="ttl">${hi(m.title)}</div>` : ''}
+       <div class="body">${hi(m.body)}</div>
+       <div class="meta">
+         ${m.tags.map(t => `<span class="mtag">${esc(t)}</span>`).join('')}
+         <button class="ghost small" data-edit="${m.id}">編集</button>
+         <button class="warn" data-del="${m.id}">削除</button>
+         <span class="date">${fmtDate(m.updated)}</span>
+       </div>
+     </div>`).join('')
+    : '<div class="empty">メモがありません。<br>思いついたらすぐ放り込んでOK。</div>';
+  $('list').querySelectorAll('[data-edit]').forEach(b => b.onclick = () => startEdit(b.dataset.edit));
+  $('list').querySelectorAll('[data-del]').forEach(b => b.onclick = () => {
+    if (!confirm('このメモを削除しますか？')) return;
+    state.memos = state.memos.filter(m => m.id !== b.dataset.del);
+    if (editId === b.dataset.del) resetForm();
+    save(); render();
+  });
+}
+function render(){ renderFilters(); renderList(filtered()); }
+
+function resetForm(){
+  editId = null; draftTags = new Set();
+  $('mTitle').value = ''; $('mBody').value = '';
+  $('formTitle').textContent = '新しいメモ';
+  $('saveMemo').textContent = '保存する';
+  $('cancelEdit').style.display = 'none';
+  renderTagPicker();
+}
+function startEdit(id){
+  const m = state.memos.find(x => x.id === id); if (!m) return;
+  editId = id; draftTags = new Set(m.tags);
+  $('mTitle').value = m.title; $('mBody').value = m.body;
+  $('formTitle').textContent = 'メモを編集';
+  $('saveMemo').textContent = '上書き保存';
+  $('cancelEdit').style.display = '';
+  renderTagPicker();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+$('saveMemo').onclick = () => {
+  const body = $('mBody').value;
+  if (!body.trim() && !$('mTitle').value.trim()) { alert('本文かタイトルを入れてください'); return; }
+  if (editId) {
+    const m = state.memos.find(x => x.id === editId);
+    m.title = $('mTitle').value.trim(); m.body = body; m.tags = [...draftTags]; m.updated = Date.now();
+  } else {
+    state.memos.unshift({ id: uid(), title: $('mTitle').value.trim(), body, tags: [...draftTags], created: Date.now(), updated: Date.now() });
+  }
+  save(); resetForm(); render();
+};
+$('cancelEdit').onclick = resetForm;
+$('addTag').onclick = () => {
+  const t = $('newTag').value.trim(); if (!t) return;
+  if (!state.customTags.includes(t)) state.customTags.push(t);
+  draftTags.add(t); $('newTag').value = ''; save(); renderTagPicker();
+};
+$('newTag').addEventListener('keydown', e => { if (e.key === 'Enter') $('addTag').click(); });
+$('q').addEventListener('input', render);
+$('clearFilter').onclick = () => { filterTags = new Set(); $('q').value = ''; render(); };
+$('randomBtn').onclick = () => {
+  if (!state.memos.length) return;
+  const pool = filtered().length ? filtered() : state.memos;
+  const pick = pool[Math.floor(Math.random() * pool.length)];
+  renderList([pick]);
+  $('countLabel').textContent = '🎲 ランダムで1件表示中（絞り込み解除で戻ります）';
+};
+
+$('exportBtn').onclick = () => {
+  const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'kotoba-memo.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').addEventListener('change', e => {
+  const f = e.target.files[0]; if (!f) return;
+  f.text().then(t => { try { const s = JSON.parse(t); if (Array.isArray(s.memos)) { state = s; state.customTags = s.customTags || []; resetForm(); save(); render(); } } catch(err){ alert('読み込めませんでした'); } });
+  e.target.value = '';
+});
+
+resetForm(); render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
