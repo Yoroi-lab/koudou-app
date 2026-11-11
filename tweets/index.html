@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>ツイート工房</title>
+<meta name="theme-color" content="#0f1419">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<style>
+:root{ --bg:#0f1419; --card:#1b2733; --line:#2f3b47; --txt:#e7ecf0; --sub:#8b98a5; --acc:#1d9bf0; --acc2:#ffd400;}
+*{ box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+body{ margin:0; background:var(--bg); color:var(--txt); font-family:-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif; font-size:15px; line-height:1.55; padding:0 12px calc(20px + env(safe-area-inset-bottom));}
+h1{ font-size:19px; margin:16px 2px 4px;}
+.hint{ color:var(--sub); font-size:12.5px; margin:0 2px 12px;}
+.card{ background:var(--card); border:1px solid var(--line); border-radius:14px; padding:12px; margin:10px 0;}
+.card h2{ font-size:14px; margin:0 0 8px; color:var(--acc2); letter-spacing:.02em;}
+label{ display:block; font-size:12.5px; color:var(--sub); margin:8px 0 4px;}
+input[type=text], textarea, select{ width:100%; background:#0d1117; color:var(--txt); border:1px solid var(--line); border-radius:10px; padding:10px; font-size:15px; font-family:inherit;}
+textarea{ min-height:76px; resize:vertical;}
+button{ appearance:none; border:0; border-radius:999px; padding:9px 16px; font-size:14px; font-weight:700; background:var(--acc); color:#fff; cursor:pointer;}
+button.ghost{ background:transparent; color:var(--acc); border:1px solid var(--acc);}
+button.warn{ background:transparent; color:#f4212e; border:1px solid #5a2b30; font-weight:600; padding:6px 12px; font-size:12.5px;}
+button.small{ padding:6px 12px; font-size:12.5px;}
+.row{ display:flex; gap:8px; flex-wrap:wrap; align-items:center;}
+.row > *{ flex:0 0 auto;}
+.grow{ flex:1 1 auto;}
+.proj{ display:flex; gap:8px; align-items:center; padding:9px 10px; border:1px solid var(--line); border-radius:10px; margin:6px 0; background:#0d1117;}
+.proj.active{ border-color:var(--acc);}
+.proj.t{ flex:1; font-weight:700; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;}
+.ref{ border:1px solid var(--line); border-radius:10px; padding:10px; margin:8px 0; background:#0d1117; white-space:pre-wrap; word-break:break-word;}
+.chips{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px;}
+.chip{ font-size:11.5px; color:var(--sub); border:1px solid var(--line); border-radius:999px; padding:2px 9px;}
+.chip b{ color:var(--txt); font-weight:600;}
+.sum{ font-size:13.5px; white-space:pre-wrap;}
+.count{ font-size:12px; color:var(--sub); text-align:right; margin-top:4px;}
+.count.over{ color:#f4212e; font-weight:700;}
+#promptOut{ min-height:140px; font-size:13px;}
+.finalbox{ border-color:var(--acc);}
+footer{ color:var(--sub); font-size:11.5px; text-align:center; margin-top:18px;}
+</style>
+</head>
+<body>
+<h1>🐦 ツイート工房</h1>
+<p class="hint">参考にしたい投稿を集めて貼る → 書き方を分析 → AI用プロンプトをコピーしてAIに渡す → 完成版をここに保存。</p>
+
+<div class="card">
+<h2>テーマ</h2>
+<div id="projList"></div>
+<div class="row">
+<input type="text" id="newProjName" class="grow" placeholder="新しいテーマ名（例：ベストバイ GV32）">
+<button id="addProj">追加</button>
+</div>
+</div>
+
+<div id="editor" style="display:none">
+<div class="card">
+<h2>① 自分の原文・言いたいこと</h2>
+<input type="text" id="pTitle" placeholder="テーマ名">
+<label>原文（雑でOK、そのままの言葉で）</label>
+<textarea id="pDraft" placeholder="例：gv32もベストバイに入ってくる。自宅でもキャンプでも大活躍。天井投影できるし、モバイルバッテリーさえあれば外でも使える。120インチは大迫力"></textarea>
+<label>条件（AIへの指定）</label>
+<textarea id="pRules" style="min-height:64px"></textarea>
+</div>
+
+<div class="card">
+<h2>② 参考ツイートを貼る</h2>
+<textarea id="refInput" placeholder="Xでコピーした投稿文をここに貼り付け"></textarea>
+<div class="row" style="margin-top:8px">
+<button id="addRef">参考に追加</button>
+<span class="hint" style="margin:0">良いと思った書き方・伸びてた投稿をいくつか</span>
+</div>
+<div id="refList"></div>
+</div>
+
+<div class="card">
+<h2>③ 書き方の分析（自動）</h2>
+<div class="sum" id="analysis">参考ツイートを追加すると、ここに傾向が出ます。</div>
+</div>
+
+<div class="card">
+<h2>④ AI用プロンプト</h2>
+<div class="row">
+<button id="genPrompt">プロンプトを作る</button>
+<button id="copyPrompt" class="ghost">コピー</button>
+</div>
+<textarea id="promptOut" style="margin-top:8px" placeholder="「プロンプトを作る」を押すと、原文＋参考＋分析＋条件をまとめた指示文がここに出ます。これをコピーしてClaudeやGrokに貼ってください。"></textarea>
+</div>
+
+<div class="card finalbox">
+<h2>⑤ 完成版</h2>
+<textarea id="pFinal" placeholder="AIが作った完成版をここに貼って保存"></textarea>
+<div class="count" id="finalCount">0 / 140字</div>
+<div class="row" style="margin-top:8px">
+<button id="postX">Xで投稿する</button>
+<button id="copyFinal" class="ghost">完成版をコピー</button>
+</div>
+</div>
+
+<div class="card">
+<div class="row">
+<button id="delProj" class="warn">このテーマを削除</button>
+<button id="exportBtn" class="ghost small">JSON書き出し</button>
+<button id="importBtn" class="ghost small">JSON読み込み</button>
+<input type="file" id="importFile" accept="application/json" style="display:none">
+</div>
+</div>
+</div>
+
+<footer>データはこの端末の中だけに保存されます</footer>
+
+<script>
+const KEY = 'tweet-koubou-v1';
+const DEFAULT_RULES = '・AIが書いた感を出さない。自然で少し崩れた、人間が書いたような文体\n・ツイートなので短めに、改行で見やすく\n・1行目はシーンか結論で止める（説明から入らない）\n・具体的な数字は1つ入れる\n・文末は言い切りすぎず、余白を残す（〜気がしてる、…など）\n・デメリットは書かない';
+let state = load();
+let curId = state.current || null;
+
+function load(){
+try{ const s = JSON.parse(localStorage.getItem(KEY)); if(s && Array.isArray(s.projects)) return s;}catch(e){}
+return { projects: [], current: null};
+}
+function save(){ localStorage.setItem(KEY, JSON.stringify(state));}
+function uid(){ return Date.now().toString(36) + Math.random().toString(36).slice(2,6);}
+function cur(){ return state.projects.find(p => p.id === curId) || null;}
+function esc(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;');}
+
+/* ---------- 簡易分析 ---------- */
+function analyzeText(t){
+const lines = t.split('\n').filter(l => l.trim()!== '');
+const first = lines[0] || '';
+const last = lines[lines.length-1] || '';
+const tags = (t.match(/#[^\s#]+/g) || []);
+const emojis = (t.match(/[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}]/gu) || []).length;
+let end = '。締め';
+const tail = t.trimEnd();
+if (tail.endsWith('…') || tail.endsWith('...')) end = '…（余白）';
+else if (tail.endsWith('！') || tail.endsWith('!')) end = '！';
+else if (tail.endsWith('？') || tail.endsWith('?')) end = '？（問いかけ）';
+else if (tail.endsWith('よ') || tail.endsWith('ね')) end = 'よ/ね';
+else if (!/[。！？!?]$/.test(tail)) end = '体言止め風（句点なし）';
+return { chars: [...t].length, lineCount: lines.length, first, last, tags, emojis, end};
+}
+function summarize(refs){
+if (!refs.length) return null;
+const as = refs.map(r => analyzeText(r.text));
+const avg = k => Math.round(as.reduce((s,a)=>s+a[k],0)/as.length);
+const ends = {};
+as.forEach(a => ends[a.end] = (ends[a.end]||0)+1);
+return { n: refs.length, avgChars: avg('chars'), avgLines: avg('lineCount'), as, ends};
+}
+
+/* ---------- 描画 ---------- */
+const $ = id => document.getElementById(id);
+function render(){
+const list = $('projList');
+list.innerHTML = state.projects.map(p =>
+`<div class="proj ${p.id===curId?'active':''}" data-id="${p.id}">
+<span class="t">${esc(p.title) || '（無題）'}</span>
+<span class="chip">参考 <b>${p.refs.length}</b></span>
+${p.final? '<span class="chip">完成版あり</span>': ''}
+<button class="ghost small" data-open="${p.id}">${p.id===curId?'編集中':'開く'}</button>
+</div>`).join('') || '<p class="hint">まだテーマがありません。下で追加してください。</p>';
+list.querySelectorAll('[data-open]').forEach(b => b.onclick = () => { curId = b.dataset.open; state.current = curId; save(); render();});
+const p = cur();
+$('editor').style.display = p? 'block': 'none';
+if (!p) return;
+if (document.activeElement!== $('pTitle')) $('pTitle').value = p.title;
+if (document.activeElement!== $('pDraft')) $('pDraft').value = p.draft;
+if (document.activeElement!== $('pRules')) $('pRules').value = p.rules;
+if (document.activeElement!== $('pFinal')) $('pFinal').value = p.final;
+renderRefs(p); renderAnalysis(p); renderFinalCount(p);
+}
+function renderRefs(p){
+$('refList').innerHTML = p.refs.map((r,i) => {
+const a = analyzeText(r.text);
+return `<div class="ref">${esc(r.text)}
+<div class="chips">
+<span class="chip"><b>${a.chars}</b>字</span>
+<span class="chip">改行 <b>${a.lineCount}</b>行</span>
+<span class="chip">文末 <b>${a.end}</b></span>
+${a.emojis? `<span class="chip">絵文字 <b>${a.emojis}</b></span>`: ''}
+${a.tags.length? `<span class="chip">${esc(a.tags.join(' '))}</span>`: ''}
+<button class="warn" data-delref="${i}">削除</button>
+</div></div>`;
+}).join('');
+$('refList').querySelectorAll('[data-delref]').forEach(b => b.onclick = () => { p.refs.splice(+b.dataset.delref,1); save(); render();});
+}
+function renderAnalysis(p){
+const s = summarize(p.refs);
+if (!s){ $('analysis').textContent = '参考ツイートを追加すると、ここに傾向が出ます。'; return;}
+const hooks = s.as.map((a,i)=>`参考${i+1}の1行目：${a.first}`).join('\n');
+const ends = Object.entries(s.ends).map(([k,v])=>`${k} ×${v}`).join('、');
+$('analysis').textContent =
+`参考 ${s.n}件 ／ 平均 ${s.avgChars}字 ／ 平均 ${s.avgLines}行
+文末の傾向：${ends}
+
+
+${hooks}
+
+ポイント：1行目でシーンか結論を言い切っているか、文末に余白があるか、数字の入れ方を真似ると寄せやすいです。`;
+}
+function renderFinalCount(p){
+const n = [...(p.final||'')].length;
+const el = $('finalCount');
+el.textContent = `${n} / 140字`;
+el.className = 'count' + (n > 140? ' over': '');
+}
+
+/* ---------- 操作 ---------- */
+$('addProj').onclick = () => {
+const name = $('newProjName').value.trim();
+const p = { id: uid(), title: name, draft: '', rules: DEFAULT_RULES, refs: [], final: ''};
+state.projects.unshift(p); curId = p.id; state.current = curId;
+$('newProjName').value = ''; save(); render();
+};
+$('newProjName').addEventListener('keydown', e => { if (e.key === 'Enter') $('addProj').click();});
+
+['pTitle','pDraft','pRules','pFinal'].forEach(id => {
+$(id).addEventListener('input', () => {
+const p = cur(); if (!p) return;
+if (id==='pTitle') p.title = $('pTitle').value;
+if (id==='pDraft') p.draft = $('pDraft').value;
+if (id==='pRules') p.rules = $('pRules').value;
+if (id==='pFinal'){ p.final = $('pFinal').value; renderFinalCount(p);}
+save();
+if (id==='pTitle') render();
+});
+});
+$('addRef').onclick = () => {
+const p = cur(); if (!p) return;
+const t = $('refInput').value.trim(); if (!t) return;
+p.refs.push({ text: t}); $('refInput').value = ''; save(); render();
+};
+$('delProj').onclick = () => {
+const p = cur(); if (!p) return;
+if (!confirm(`テーマ「${p.title}」を削除しますか？`)) return;
+state.projects = state.projects.filter(x => x.id!== p.id);
+curId = state.projects[0]?.id || null; state.current = curId; save(); render();
+};
+
+$('genPrompt').onclick = () => {
+const p = cur(); if (!p) return;
+const s = summarize(p.refs);
+const refs = p.refs.map((r,i)=>`\n${r.text}`).join('\n\n');
+const ana = s? `平均${s.avgChars}字／平均${s.avgLines}行／文末の傾向：${Object.entries(s.ends).map(([k,v])=>`${k}×${v}`).join('、')}\n1行目（フック）：\n${s.as.map(a=>`・${a.first}`).join('\n')}`: '（参考なし）';
+$('promptOut').value =
+`X（Twitter）の投稿文を1つ作ってください。
+
+${p.title}
+
+
+${p.draft}
+
+
+${refs || '（なし）'}
+
+
+${ana}
+
+
+${p.rules}
+
+参考ツイートの「書き方の型」だけを真似て、内容は私の原文から作ってください。完成版のツイート文だけを出力してください。`;
+};
+$('copyPrompt').onclick = async () => { if ($('promptOut').value) { await navigator.clipboard.writeText($('promptOut').value).catch(()=>{ $('promptOut').select(); document.execCommand('copy');}); $('copyPrompt').textContent = 'コピーしました'; setTimeout(()=>$('copyPrompt').textContent='コピー',1500);}};
+$('copyFinal').onclick = async () => { const p = cur(); if (p && p.final) { await navigator.clipboard.writeText(p.final).catch(()=>{}); $('copyFinal').textContent = 'コピーしました'; setTimeout(()=>$('copyFinal').textContent='完成版をコピー',1500);}};
+$('postX').onclick = () => { const p = cur(); if (p && p.final) window.open('https://twitter.com/intent/tweet?text=' + encodeURIComponent(p.final), '_blank');};
+
+$('exportBtn').onclick = () => {
+const blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json'});
+const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'tweet-koubou.json'; a.click(); URL.revokeObjectURL(a.href);
+};
+$('importBtn').onclick = () => $('importFile').click();
+$('importFile').addEventListener('change', e => {
+const f = e.target.files[0]; if (!f) return;
+f.text().then(t => { try { const s = JSON.parse(t); if (Array.isArray(s.projects)) { state = s; curId = s.current || s.projects[0]?.id || null; save(); render();}} catch(err){ alert('読み込めませんでした');}});
+e.target.value = '';
+});
+
+render();
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body>
+</html>
