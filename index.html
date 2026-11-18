@@ -70,6 +70,10 @@ button{position:relative;overflow:hidden}
 .pop{animation:popCard .35s cubic-bezier(.34,1.56,.64,1)}
 #toast{position:fixed;left:50%;bottom:calc(26px + env(safe-area-inset-bottom));transform:translate(-50%,20px);background:#2e2e40;color:var(--text);border:1px solid var(--border);padding:11px 18px;border-radius:999px;font-size:14px;font-weight:600;opacity:0;pointer-events:none;transition:all .3s cubic-bezier(.22,1,.36,1);z-index:60;box-shadow:0 10px 26px rgba(0,0,0,.4);max-width:88vw;text-align:center}
 #toast.show{opacity:1;transform:translate(-50%,0)}
+#longWarn{margin-top:12px;background:rgba(245,158,11,.13);border:1px solid rgba(245,158,11,.5);border-radius:12px;padding:12px;font-size:14px;line-height:1.5}
+#longWarn .lw-btns{display:flex;gap:8px;margin-top:9px}
+#longWarnMain{flex:1;background:#f59e0b;color:#451a03;border:none;border-radius:10px;padding:10px;font-size:14px;font-weight:700;cursor:pointer}
+#longWarnSub{flex:1;background:var(--card2);color:var(--text);border:1px solid var(--border);border-radius:10px;padding:10px;font-size:14px;cursor:pointer}
 .daybar{height:8px;background:var(--card2);border-radius:99px;overflow:hidden;margin:12px 0 4px}
 #dayProgress{height:100%;width:0;background:linear-gradient(90deg,var(--accent),#818cf8);border-radius:99px;transition:width .6s cubic-bezier(.22,1,.36,1)}
 .entry-wrap{position:relative;overflow:hidden;border-bottom:1px solid var(--border)}
@@ -103,6 +107,13 @@ button{position:relative;overflow:hidden}
   <div class="cat" id="timerCat"></div>
   <input id="quickMemo" placeholder="メモ（任意）例：社会政策B" style="margin-top:12px;text-align:center">
   <button class="btn btn-stop" id="stopBtn" style="display:none">停止する</button>
+  <div id="longWarn" style="display:none">
+    <div id="longWarnText"></div>
+    <div class="lw-btns">
+      <button id="longWarnMain"></button>
+      <button id="longWarnSub"></button>
+    </div>
+  </div>
 </div>
 
 <div class="card">
@@ -226,6 +237,41 @@ document.addEventListener("pointerdown",e=>{
   const b=e.target.closest(".catbtn,.btn,.datebar button,#addEntryBtn");
   if(b)addRipple(b,e.clientX,e.clientY);
 },true);
+// --- 止め忘れ対策: 3時間以上の計測で警告し、終了時刻の修正へ誘導する ---
+const LONG_MS=3*3600*1000;
+let longMode=null,longShownFor=null,longDismissedFor=null,longEntryId=null;
+function hideLongWarn(){longMode=null;const w=document.getElementById("longWarn");if(w)w.style.display="none";}
+function showLongWarn(mode,text,mainLabel,subLabel){
+  longMode=mode;
+  document.getElementById("longWarnText").textContent=text;
+  document.getElementById("longWarnMain").textContent=mainLabel;
+  document.getElementById("longWarnSub").textContent=subLabel;
+  document.getElementById("longWarn").style.display="block";
+}
+function checkRunWarn(){
+  if(!state.running||longMode==="stopped")return;
+  const el=Date.now()-new Date(state.running.start).getTime();
+  if(el>=LONG_MS&&longDismissedFor!==state.running.start&&longShownFor!==state.running.start){
+    longShownFor=state.running.start;
+    showLongWarn("run","⚠ 「"+catById(state.running.cat).name+"」を "+fmtDur(el)+" 計測中です。止め忘れていませんか？","今止める","計測を続ける");
+  }
+}
+function checkLongStopped(entry){
+  if(!entry)return;
+  const dur=new Date(entry.end).getTime()-new Date(entry.start).getTime();
+  if(dur>=LONG_MS){
+    longEntryId=entry.id;
+    showLongWarn("stopped","「"+catById(entry.cat).name+"」が "+fmtDur(dur)+" の記録になりました。終了時刻は合っていますか？","終了時刻を直す","このままでOK");
+  }
+}
+document.getElementById("longWarnMain").onclick=()=>{
+  if(longMode==="run"){document.getElementById("stopBtn").click();}
+  else if(longMode==="stopped"){const id=longEntryId;hideLongWarn();if(id)editEntry(id);}
+};
+document.getElementById("longWarnSub").onclick=()=>{
+  if(longMode==="run"){longDismissedFor=state.running?state.running.start:null;}
+  hideLongWarn();
+};
 function allCats(){return CATS.concat(state.custom||[]);}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(state));}catch(e){alert("保存に失敗しました。JSON書き出しでバックアップしてください。");}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,7);}
@@ -327,22 +373,27 @@ function renderCustomList(){
 function startCat(id){
   const now=new Date();
   const qm=document.getElementById("quickMemo");
+  hideLongWarn();
   if(state.running){
     state.running.memo=qm.value;
-    state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});
+    const prev={id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""};
+    state.entries.push(prev);
     state.running={cat:id,start:now.toISOString(),memo:""};
     qm.value="";
+    save();render();checkLongStopped(prev);
   }else{
     state.running={cat:id,start:now.toISOString(),memo:qm.value};
+    save();render();
   }
-  save();render();
 }
 document.getElementById("stopBtn").onclick=()=>{
   if(!state.running)return;
   const now=new Date();
   state.running.memo=document.getElementById("quickMemo").value;
-  state.entries.push({id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""});
+  const en={id:uid(),cat:state.running.cat,start:state.running.start,end:now.toISOString(),memo:state.running.memo||""};
+  state.entries.push(en);
   state.running=null;document.getElementById("quickMemo").value="";save();render();
+  hideLongWarn();checkLongStopped(en);
 };
 document.getElementById("quickMemo").addEventListener("input",e=>{
   if(state.running){state.running.memo=e.target.value;save();}
@@ -351,6 +402,7 @@ setInterval(()=>{
   if(state.running){
     const el=Date.now()-new Date(state.running.start).getTime();
     document.getElementById("timerElapsed").textContent=fmtDur(el);
+    checkRunWarn();
   }
 },500);
 
@@ -449,6 +501,7 @@ function render(){
   }
   wh+="</table>";
   document.getElementById("weekTable").innerHTML=wh;
+  checkRunWarn();
 }
 let editingId=null;
 function setSwipe(row,dx){
