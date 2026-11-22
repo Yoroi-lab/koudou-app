@@ -237,8 +237,10 @@ document.addEventListener("pointerdown",e=>{
   const b=e.target.closest(".catbtn,.btn,.datebar button,#addEntryBtn");
   if(b)addRipple(b,e.clientX,e.clientY);
 },true);
-// --- 止め忘れ対策: 3時間以上の計測で警告し、終了時刻の修正へ誘導する ---
-const LONG_MS=3*3600*1000;
+// --- 止め忘れ対策 v11: カテゴリ別の目安時間を超えたら、開いた時点で「目安で区切る」補正を提案する ---
+const CAP_MS={meal:3600*1000,move:3600*1000,training:3600*1000,hygiene:3600*1000,work:3*3600*1000,prep:3*3600*1000,phone:3*3600*1000,other:3*3600*1000};
+const DEFAULT_CAP_MS=3*3600*1000;
+function capFor(cat){if(cat==="sleep")return Infinity;const c=CAP_MS[cat];return c==null?DEFAULT_CAP_MS:c;}
 let longMode=null,longShownFor=null,longDismissedFor=null,longEntryId=null;
 function hideLongWarn(){longMode=null;const w=document.getElementById("longWarn");if(w)w.style.display="none";}
 function showLongWarn(mode,text,mainLabel,subLabel){
@@ -249,27 +251,43 @@ function showLongWarn(mode,text,mainLabel,subLabel){
   document.getElementById("longWarn").style.display="block";
 }
 function checkRunWarn(){
-  if(!state.running||longMode==="stopped")return;
+  if(!state.running||longMode==="stopped"||longMode==="cap")return;
+  const cap=capFor(state.running.cat);
+  if(!isFinite(cap))return;
   const el=Date.now()-new Date(state.running.start).getTime();
-  if(el>=LONG_MS&&longDismissedFor!==state.running.start&&longShownFor!==state.running.start){
+  if(el>=cap&&longDismissedFor!==state.running.start&&longShownFor!==state.running.start){
     longShownFor=state.running.start;
-    showLongWarn("run","⚠ 「"+catById(state.running.cat).name+"」を "+fmtDur(el)+" 計測中です。止め忘れていませんか？","今止める","計測を続ける");
+    showLongWarn("cap","⚠ 「"+catById(state.running.cat).name+"」を "+fmtDur(el)+" 計測中です。止め忘れの目安（"+fmtHM(cap/60000)+"）を超えています。"+fmtHM(cap/60000)+"で区切りますか？",fmtHM(cap/60000)+"で区切る","計測を続ける");
   }
+}
+function cutRunningAtCap(){
+  if(!state.running)return;
+  const cap=capFor(state.running.cat);
+  if(!isFinite(cap))return;
+  state.running.memo=document.getElementById("quickMemo").value;
+  const st=new Date(state.running.start).getTime();
+  const en={id:uid(),cat:state.running.cat,start:state.running.start,end:new Date(st+cap).toISOString(),memo:state.running.memo||""};
+  state.entries.push(en);
+  state.running=null;document.getElementById("quickMemo").value="";
+  save();render();hideLongWarn();
+  showToast("「"+catById(en.cat).name+"」を "+fmtHM(cap/60000)+" で区切りました");
 }
 function checkLongStopped(entry){
   if(!entry)return;
+  const cap=capFor(entry.cat);
+  if(!isFinite(cap))return;
   const dur=new Date(entry.end).getTime()-new Date(entry.start).getTime();
-  if(dur>=LONG_MS){
+  if(dur>=cap){
     longEntryId=entry.id;
-    showLongWarn("stopped","「"+catById(entry.cat).name+"」が "+fmtDur(dur)+" の記録になりました。終了時刻は合っていますか？","終了時刻を直す","このままでOK");
+    showLongWarn("stopped","「"+catById(entry.cat).name+"」が "+fmtDur(dur)+" の記録になりました（目安は"+fmtHM(cap/60000)+"）。終了時刻は合っていますか？","終了時刻を直す","このままでOK");
   }
 }
 document.getElementById("longWarnMain").onclick=()=>{
-  if(longMode==="run"){document.getElementById("stopBtn").click();}
+  if(longMode==="cap"){cutRunningAtCap();}
   else if(longMode==="stopped"){const id=longEntryId;hideLongWarn();if(id)editEntry(id);}
 };
 document.getElementById("longWarnSub").onclick=()=>{
-  if(longMode==="run"){longDismissedFor=state.running?state.running.start:null;}
+  if(longMode==="cap"){longDismissedFor=state.running?state.running.start:null;}
   hideLongWarn();
 };
 function allCats(){return CATS.concat(state.custom||[]);}
